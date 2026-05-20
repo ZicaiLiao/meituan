@@ -8,6 +8,7 @@ import com.meituan.demo.backend.model.DomainModels.Message;
 import com.meituan.demo.backend.model.DomainModels.MessageType;
 import com.meituan.demo.backend.model.DomainModels.Order;
 import com.meituan.demo.backend.model.DomainModels.OrderLine;
+import com.meituan.demo.backend.model.DomainModels.OrderStatusLog;
 import com.meituan.demo.backend.model.DomainModels.OrderStatus;
 import com.meituan.demo.backend.model.DomainModels.Product;
 import com.meituan.demo.backend.model.DomainModels.Role;
@@ -39,6 +40,7 @@ public class DemoDataStore {
     private final Map<Long, MemberProfile> memberProfiles = new ConcurrentHashMap<>();
     private final Map<Long, List<com.meituan.demo.backend.model.DomainModels.CartItem>> carts = new ConcurrentHashMap<>();
     private final Map<Long, Order> orders = new ConcurrentHashMap<>();
+    private final Map<Long, List<OrderStatusLog>> orderStatusLogs = new ConcurrentHashMap<>();
     private final Map<Long, Conversation> conversations = new ConcurrentHashMap<>();
     private final Map<Long, List<Message>> messagesByConversation = new ConcurrentHashMap<>();
     private final AtomicLong orderIdSequence = new AtomicLong(9000);
@@ -124,6 +126,14 @@ public class DemoDataStore {
                 new BigDecimal("46"), new BigDecimal("43"), 6103L, 6003L, Instant.now().minus(40, ChronoUnit.MINUTES),
                 List.of(new OrderLine(5101L, "鸡胸肉能量碗", 1, new BigDecimal("24")),
                         new OrderLine(5102L, "牛油果沙拉", 1, new BigDecimal("22")))));
+        orderStatusLogs.put(9001L, new ArrayList<>(List.of(
+                new OrderStatusLog(9001L, OrderStatus.PENDING_PAYMENT, "用户提交订单", Instant.now().minus(23, ChronoUnit.MINUTES)),
+                new OrderStatusLog(9001L, OrderStatus.PAID_WAITING_MERCHANT, "支付成功，等待商家接单", Instant.now().minus(20, ChronoUnit.MINUTES)))));
+        orderStatusLogs.put(9002L, new ArrayList<>(List.of(
+                new OrderStatusLog(9002L, OrderStatus.PENDING_PAYMENT, "用户提交订单", Instant.now().minus(43, ChronoUnit.MINUTES)),
+                new OrderStatusLog(9002L, OrderStatus.PAID_WAITING_MERCHANT, "支付成功", Instant.now().minus(41, ChronoUnit.MINUTES)),
+                new OrderStatusLog(9002L, OrderStatus.RIDER_PENDING, "商家已接单，等待骑手", Instant.now().minus(34, ChronoUnit.MINUTES)),
+                new OrderStatusLog(9002L, OrderStatus.DELIVERING, "骑手已取餐，配送中", Instant.now().minus(16, ChronoUnit.MINUTES)))));
 
         conversations.put(7001L, new Conversation(7001L, ConversationScene.ORDER, 9002L, "订单配送沟通",
                 Set.of(1002L, 3001L, 5001L),
@@ -170,6 +180,10 @@ public class DemoDataStore {
         return orders;
     }
 
+    public Map<Long, List<OrderStatusLog>> orderStatusLogs() {
+        return orderStatusLogs;
+    }
+
     public Map<Long, Conversation> conversations() {
         return conversations;
     }
@@ -196,4 +210,3 @@ public class DemoDataStore {
                 .toList();
     }
 }
-

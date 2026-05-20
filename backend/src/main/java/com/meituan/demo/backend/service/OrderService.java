@@ -7,6 +7,7 @@ import com.meituan.demo.backend.model.DomainModels.CartItem;
 import com.meituan.demo.backend.model.DomainModels.Coupon;
 import com.meituan.demo.backend.model.DomainModels.Order;
 import com.meituan.demo.backend.model.DomainModels.OrderLine;
+import com.meituan.demo.backend.model.DomainModels.OrderStatusLog;
 import com.meituan.demo.backend.model.DomainModels.OrderStatus;
 import com.meituan.demo.backend.model.DomainModels.Product;
 import com.meituan.demo.backend.model.DomainModels.Role;
@@ -93,6 +94,7 @@ public class OrderService {
         Order order = new Order(dataStore.nextOrderId(), principal.id(), shopId, null,
                 OrderStatus.PENDING_PAYMENT, total, payable, request.couponId(), addressId, Instant.now(), lines);
         dataStore.orders().put(order.id(), order);
+        appendStatusLog(order.id(), OrderStatus.PENDING_PAYMENT, "用户提交订单");
         dataStore.carts().remove(principal.id());
         notifyMerchant(shopId, "order.created", "新订单待支付", "用户已创建订单 #" + order.id());
         integrationEventService.publish("order-created", Map.of("orderId", order.id(), "userId", principal.id(), "shopId", shopId));
@@ -110,6 +112,7 @@ public class OrderService {
                 OrderStatus.PAID_WAITING_MERCHANT, current.totalAmount(), current.payableAmount(), current.couponId(),
                 current.addressId(), current.createdAt(), current.items());
         dataStore.orders().put(orderId, paid);
+        appendStatusLog(orderId, OrderStatus.PAID_WAITING_MERCHANT, "支付成功，等待商家接单");
         notifyMerchant(current.shopId(), "payment.succeeded", "订单已支付", "订单 #" + orderId + " 待商家接单");
         streamService.notifyUser(Role.CUSTOMER, principal.id(), "payment.succeeded", "支付成功", "订单已支付，等待商家接单");
         integrationEventService.publish("payment-succeeded", Map.of("orderId", orderId));
@@ -143,6 +146,7 @@ public class OrderService {
                 OrderStatus.RIDER_PENDING, current.totalAmount(), current.payableAmount(), current.couponId(),
                 current.addressId(), current.createdAt(), current.items());
         dataStore.orders().put(orderId, updated);
+        appendStatusLog(orderId, OrderStatus.RIDER_PENDING, "商家已接单，等待骑手抢单");
         streamService.notifyUser(Role.CUSTOMER, current.userId(), "merchant.accepted", "商家已接单", "骑手即将接单配送");
         notifyAllRiders("merchant.accepted", "新的可抢订单", "订单 #" + orderId + " 已进入骑手抢单池");
         integrationEventService.publish("merchant-accepted", Map.of("orderId", orderId));
@@ -158,6 +162,7 @@ public class OrderService {
                 OrderStatus.REJECTED, current.totalAmount(), current.payableAmount(), current.couponId(),
                 current.addressId(), current.createdAt(), current.items());
         dataStore.orders().put(orderId, updated);
+        appendStatusLog(orderId, OrderStatus.REJECTED, "商家拒单，已触发退款");
         streamService.notifyUser(Role.CUSTOMER, current.userId(), "merchant.rejected", "商家拒单", "订单已退款并返还优惠资格");
         integrationEventService.publish("merchant-rejected", Map.of("orderId", orderId));
         return updated;
@@ -177,6 +182,7 @@ public class OrderService {
                 OrderStatus.DELIVERING, current.totalAmount(), current.payableAmount(), current.couponId(),
                 current.addressId(), current.createdAt(), current.items());
         dataStore.orders().put(orderId, updated);
+        appendStatusLog(orderId, OrderStatus.DELIVERING, "骑手已接单，正在配送");
         streamService.notifyUser(Role.CUSTOMER, current.userId(), "rider.accepted", "骑手已接单", "骑手正在前往商家取餐");
         notifyMerchant(current.shopId(), "rider.accepted", "骑手已接单", "订单 #" + orderId + " 已有骑手接单");
         return updated;
@@ -193,9 +199,19 @@ public class OrderService {
                 OrderStatus.COMPLETED, current.totalAmount(), current.payableAmount(), current.couponId(),
                 current.addressId(), current.createdAt(), current.items());
         dataStore.orders().put(orderId, updated);
+        appendStatusLog(orderId, OrderStatus.COMPLETED, "订单已送达");
         streamService.notifyUser(Role.CUSTOMER, current.userId(), "delivery.completed", "订单已送达", "感谢使用，欢迎对本次订单进行评价");
         integrationEventService.publish("delivery-completed", Map.of("orderId", orderId, "riderId", principal.id()));
         return updated;
+    }
+
+    public List<OrderStatusLog> orderTimeline(Long orderId, DemoUserPrincipal principal) {
+        Order order = dataStore.orders().get(orderId);
+        assertOrderExists(order, orderId);
+        if (principal.role() == Role.CUSTOMER && !order.userId().equals(principal.id())) {
+            throw new IllegalArgumentException("Order does not belong to current user");
+        }
+        return dataStore.orderStatusLogs().getOrDefault(orderId, List.of());
     }
 
     public Map<String, Object> summary() {
@@ -243,5 +259,11 @@ public class OrderService {
         if (order.status() != expected) {
             throw new IllegalStateException(message);
         }
+    }
+
+    private void appendStatusLog(Long orderId, OrderStatus status, String note) {
+        dataStore.orderStatusLogs()
+                .computeIfAbsent(orderId, unused -> new ArrayList<>())
+                .add(new OrderStatusLog(orderId, status, note, Instant.now()));
     }
 }

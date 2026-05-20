@@ -97,6 +97,9 @@ public final class DomainModels {
     public record OrderLine(Long productId, String productName, int quantity, BigDecimal unitPrice) {
     }
 
+    public record OrderStatusLog(Long orderId, OrderStatus status, String note, Instant createdAt) {
+    }
+
     public record Order(
             Long id,
             Long userId,
@@ -139,4 +142,3 @@ public final class DomainModels {
     public record EventPayload(String event, String title, String content, Instant createdAt) {
     }
 }
-

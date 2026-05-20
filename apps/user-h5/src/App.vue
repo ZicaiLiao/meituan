@@ -27,6 +27,13 @@ type Order = {
   items: { productName: string; quantity: number }[];
 };
 
+type TimelineItem = {
+  orderId: number;
+  status: string;
+  note: string;
+  createdAt: string;
+};
+
 const token = 'demo-customer-1001';
 const apiBase = 'http://localhost:8080';
 
@@ -40,6 +47,8 @@ const searchKeyword = ref('');
 const messageContent = ref('骑手您好，麻烦到楼下给我打电话。');
 const statusText = ref('正在加载演示数据...');
 const liveEvents = ref<string[]>([]);
+const featuredProductByShop = ref<Record<number, number>>({});
+const latestTimeline = ref<TimelineItem[]>([]);
 
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${apiBase}${path}`, {
@@ -71,6 +80,15 @@ async function loadAll() {
   membership.value = membershipData;
   orders.value = orderData;
   conversations.value = conversationData;
+  const detailResults = await Promise.all(shopData.map((shop) => api<any>(`/api/shops/${shop.id}`)));
+  featuredProductByShop.value = Object.fromEntries(
+    detailResults
+      .map((detail) => [detail.shop.id, detail.products?.[0]?.id])
+      .filter((entry) => entry[1] !== undefined)
+  );
+  if (orderData.length > 0) {
+    latestTimeline.value = await api<TimelineItem[]>(`/api/orders/${orderData[0].id}/timeline`);
+  }
   statusText.value = '演示数据已就绪，可直接体验加购、下单和聊天。';
 }
 
@@ -92,6 +110,7 @@ async function createOrderAndPay() {
     body: JSON.stringify({ paymentChannel: 'MOCK_PAY' })
   });
   orders.value = [paid, ...orders.value];
+  latestTimeline.value = await api<TimelineItem[]>(`/api/orders/${paid.id}/timeline`);
   statusText.value = `订单 #${paid.id} 已创建并支付，等待商家接单`;
 }
 
@@ -189,7 +208,7 @@ onMounted(async () => {
           <span v-for="tag in shop.tags" :key="tag" class="tag">{{ tag }}</span>
         </div>
         <div class="button-row">
-          <button @click="addToCart(shop.id === 3001 ? 5001 : shop.id === 3002 ? 5101 : 5201)">加购店铺热销</button>
+          <button @click="addToCart(featuredProductByShop[shop.id])" :disabled="!featuredProductByShop[shop.id]">加购店铺热销</button>
         </div>
       </article>
     </section>
@@ -227,6 +246,14 @@ onMounted(async () => {
         <ul class="detail-list">
           <li v-for="item in order.items" :key="`${order.id}-${item.productName}`" class="order-line">
             {{ item.productName }} x {{ item.quantity }}
+          </li>
+        </ul>
+      </div>
+      <div class="card" v-if="latestTimeline.length > 0">
+        <strong>最新订单时间线</strong>
+        <ul class="detail-list">
+          <li v-for="item in latestTimeline" :key="`${item.orderId}-${item.createdAt}-${item.status}`">
+            {{ item.status }} · {{ item.note }}
           </li>
         </ul>
       </div>

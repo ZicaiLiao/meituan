@@ -98,6 +98,11 @@ public class CustomerController {
         return orderService.ordersForPrincipal(securitySupport.currentUser());
     }
 
+    @GetMapping("/orders/{orderId}/timeline")
+    public Object orderTimeline(@PathVariable Long orderId) {
+        return orderService.orderTimeline(orderId, securitySupport.currentUser());
+    }
+
     @GetMapping("/coupons")
     public Object coupons() {
         return marketingService.couponsForUser(securitySupport.currentUser().id());
@@ -128,4 +133,3 @@ public class CustomerController {
         return chatService.createMessage(securitySupport.currentUser(), request);
     }
 }
-

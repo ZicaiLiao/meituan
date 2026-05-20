@@ -1,0 +1,30 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: meituan-backend
+  jackson:
+    default-property-inclusion: non_null
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+rocketmq:
+  name-server: localhost:9876
+  producer:
+    group: meituan-demo-producer
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+

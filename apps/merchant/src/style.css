@@ -1,0 +1,69 @@
+body {
+  margin: 0;
+  font-family: "PingFang SC", "Helvetica Neue", sans-serif;
+  background: linear-gradient(180deg, #f7fafc 0%, #edf2f7 100%);
+  color: #1a202c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.page {
+  padding: 24px;
+}
+
+.hero,
+.panel,
+.table-card {
+  background: white;
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+
+.hero {
+  background: linear-gradient(135deg, #0ea5e9, #22c55e);
+  color: white;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+button {
+  border: none;
+  border-radius: 999px;
+  padding: 9px 14px;
+  margin-right: 8px;
+  cursor: pointer;
+  background: #0ea5e9;
+  color: white;
+}
+
+button.secondary {
+  background: #cbd5e1;
+  color: #0f172a;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+

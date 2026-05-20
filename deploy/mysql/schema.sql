@@ -1,0 +1,78 @@
+CREATE TABLE IF NOT EXISTS users (
+  id BIGINT PRIMARY KEY,
+  role VARCHAR(32) NOT NULL,
+  username VARCHAR(64) NOT NULL,
+  phone VARCHAR(32),
+  level VARCHAR(32),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS shops (
+  id BIGINT PRIMARY KEY,
+  name VARCHAR(128) NOT NULL,
+  category VARCHAR(64) NOT NULL,
+  score DECIMAL(3,2) NOT NULL,
+  monthly_sales INT NOT NULL,
+  delivery_fee DECIMAL(10,2) NOT NULL,
+  delivery_minutes INT NOT NULL,
+  tags VARCHAR(255),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS products (
+  id BIGINT PRIMARY KEY,
+  shop_id BIGINT NOT NULL,
+  name VARCHAR(128) NOT NULL,
+  price DECIMAL(10,2) NOT NULL,
+  stock INT NOT NULL,
+  category VARCHAR(64),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS orders (
+  id BIGINT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  shop_id BIGINT NOT NULL,
+  rider_id BIGINT,
+  status VARCHAR(64) NOT NULL,
+  total_amount DECIMAL(10,2) NOT NULL,
+  payable_amount DECIMAL(10,2) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS order_items (
+  id BIGINT PRIMARY KEY,
+  order_id BIGINT NOT NULL,
+  product_id BIGINT NOT NULL,
+  product_name VARCHAR(128) NOT NULL,
+  quantity INT NOT NULL,
+  unit_price DECIMAL(10,2) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS coupon_templates (
+  id BIGINT PRIMARY KEY,
+  owner_scope VARCHAR(32) NOT NULL,
+  title VARCHAR(128) NOT NULL,
+  discount_amount DECIMAL(10,2) NOT NULL,
+  minimum_spend DECIMAL(10,2) NOT NULL,
+  stock INT NOT NULL,
+  valid_until TIMESTAMP NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS conversations (
+  id BIGINT PRIMARY KEY,
+  scene VARCHAR(32) NOT NULL,
+  order_id BIGINT,
+  title VARCHAR(128)
+);
+
+CREATE TABLE IF NOT EXISTS messages (
+  id BIGINT PRIMARY KEY,
+  conversation_id BIGINT NOT NULL,
+  sender_id BIGINT NOT NULL,
+  sender_role VARCHAR(32) NOT NULL,
+  message_type VARCHAR(32) NOT NULL,
+  content TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+

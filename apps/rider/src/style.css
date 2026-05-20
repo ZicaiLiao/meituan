@@ -1,0 +1,54 @@
+body {
+  margin: 0;
+  font-family: "PingFang SC", "Helvetica Neue", sans-serif;
+  background: linear-gradient(180deg, #eef6ff 0%, #f8fbff 100%);
+  color: #102a43;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.page {
+  padding: 24px;
+}
+
+.hero,
+.card {
+  background: white;
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: 0 12px 30px rgba(30, 64, 175, 0.1);
+}
+
+.hero {
+  background: linear-gradient(135deg, #2563eb, #38bdf8);
+  color: white;
+}
+
+.card {
+  margin-top: 16px;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #dbeafe;
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+button {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: #2563eb;
+  color: white;
+  cursor: pointer;
+  margin-left: 8px;
+}
+

@@ -52,3 +52,15 @@ button {
   margin-left: 8px;
 }
 
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+input {
+  width: 100%;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-top: 8px;
+}

@@ -39,6 +39,23 @@ body {
   min-height: 220px;
 }
 
+button {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: #1e293b;
+  color: white;
+  cursor: pointer;
+}
+
+input {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-top: 8px;
+}
+
 ul {
   padding-left: 18px;
 }
@@ -48,4 +65,3 @@ ul {
     grid-template-columns: 1fr;
   }
 }
-

@@ -1,5 +1,7 @@
 package com.meituan.demo.backend.service;
 
+import com.meituan.demo.backend.model.ApiModels.ProductUpsertRequest;
+import com.meituan.demo.backend.model.ApiModels.ShopUpsertRequest;
 import com.meituan.demo.backend.model.DomainModels.Product;
 import com.meituan.demo.backend.model.DomainModels.RecommendationBundle;
 import com.meituan.demo.backend.model.DomainModels.SearchResult;
@@ -13,6 +15,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class CatalogService {
@@ -35,34 +38,110 @@ public class CatalogService {
         return Map.of("shop", shop, "products", products, "similarShops", similarShops);
     }
 
-    public SearchResult search(String keyword, String sort) {
+    public SearchResult search(Long userId, String keyword, String sort) {
+        if (userId != null && keyword != null && !keyword.isBlank()) {
+            catalogRepository.recordSearchHistory(userId, keyword);
+        }
         List<Shop> shops = rankShops(keyword, sort);
         String normalized = keyword == null ? "" : keyword.toLowerCase(Locale.ROOT);
         List<Product> products = normalized.isBlank()
                 ? catalogRepository.findTopProducts(8)
                 : catalogRepository.searchProducts(keyword, 8);
         List<String> suggestions = normalized.isBlank()
-                ? List.of("轻食", "烧烤", "奶茶")
+                ? List.of("轻食", "烧烤", "川味")
                 : List.of(keyword + " 套餐", keyword + " 热门", keyword + " 附近");
         return new SearchResult(shops, products, sort == null ? "composite" : sort, suggestions);
     }
 
     public RecommendationBundle homeRecommendations(DemoUserPrincipal principal) {
         List<Shop> all = new ArrayList<>(catalogRepository.findAllShops());
+        List<Long> favoriteShopIds = principal == null ? List.of() : catalogRepository.findFavoriteShopIds(principal.id());
         List<Shop> guess = all.stream()
-                .sorted(Comparator.comparing(this::compositeRecommendationScore).reversed())
-                .limit(3)
+                .sorted(Comparator.comparing(
+                        (Shop shop) -> compositeRecommendationScore(shop, favoriteShopIds.contains(shop.id()))).reversed())
+                .limit(4)
                 .toList();
         List<Shop> nearby = all.stream()
                 .sorted(Comparator.comparing(Shop::distanceKm))
-                .limit(3)
+                .limit(4)
                 .toList();
         List<Shop> similar = all.stream()
-                .filter(shop -> !"轻食沙拉".equals(shop.category()) || principal.id().equals(1001L))
                 .sorted(Comparator.comparing(Shop::score).reversed())
-                .limit(3)
+                .limit(4)
                 .toList();
         return new RecommendationBundle(guess, nearby, similar);
+    }
+
+    public List<Shop> favoriteShops(Long userId) {
+        List<Long> favoriteIds = catalogRepository.findFavoriteShopIds(userId);
+        return catalogRepository.findAllShops().stream().filter(shop -> favoriteIds.contains(shop.id())).toList();
+    }
+
+    @Transactional
+    public boolean toggleFavoriteShop(Long userId, Long shopId, boolean favorite) {
+        if (catalogRepository.findShopById(shopId).isEmpty()) {
+            throw new IllegalArgumentException("Shop not found: " + shopId);
+        }
+        if (favorite) {
+            catalogRepository.addFavoriteShop(userId, shopId);
+        } else {
+            catalogRepository.removeFavoriteShop(userId, shopId);
+        }
+        return favorite;
+    }
+
+    public List<String> searchHistory(Long userId) {
+        return catalogRepository.searchHistory(userId, 10);
+    }
+
+    @Transactional
+    public Map<String, Object> updateMerchantShop(Long shopId, ShopUpsertRequest request) {
+        catalogRepository.updateShop(
+                shopId,
+                request.name(),
+                request.category(),
+                request.deliveryFee(),
+                request.deliveryMinutes(),
+                request.averagePrice(),
+                request.tags(),
+                request.announcement(),
+                request.status(),
+                request.serviceModes(),
+                request.minOrderAmount());
+        return shopDetail(shopId);
+    }
+
+    @Transactional
+    public Product createMerchantProduct(Long shopId, ProductUpsertRequest request) {
+        return catalogRepository.createProduct(
+                shopId,
+                request.name(),
+                request.category(),
+                request.price(),
+                request.originalPrice(),
+                request.stock(),
+                request.description(),
+                request.enabled());
+    }
+
+    @Transactional
+    public Product updateMerchantProduct(Long shopId, Long productId, ProductUpsertRequest request) {
+        catalogRepository.updateProduct(
+                productId,
+                shopId,
+                request.name(),
+                request.category(),
+                request.price(),
+                request.originalPrice(),
+                request.stock(),
+                request.description(),
+                request.enabled());
+        return catalogRepository.findProductsByIds(List.of(productId)).get(productId);
+    }
+
+    @Transactional
+    public void deleteMerchantProduct(Long shopId, Long productId) {
+        catalogRepository.deleteProduct(productId, shopId);
     }
 
     private List<Shop> rankShops(String keyword, String sort) {
@@ -75,6 +154,7 @@ public class CatalogService {
         };
 
         return catalogRepository.findAllShops().stream()
+                .filter(shop -> "OPEN".equalsIgnoreCase(shop.status()))
                 .filter(shop -> normalized.isBlank()
                         || shop.name().toLowerCase(Locale.ROOT).contains(normalized)
                         || shop.category().toLowerCase(Locale.ROOT).contains(normalized)
@@ -91,10 +171,12 @@ public class CatalogService {
         return relevance.add(sales).add(distance).add(activity);
     }
 
-    private BigDecimal compositeRecommendationScore(Shop shop) {
+    private BigDecimal compositeRecommendationScore(Shop shop, boolean isFavorite) {
+        BigDecimal favoriteBoost = isFavorite ? BigDecimal.valueOf(6) : BigDecimal.ZERO;
         return shop.score()
                 .multiply(BigDecimal.valueOf(25))
                 .add(BigDecimal.valueOf(shop.monthlySales() / 120.0))
-                .add(BigDecimal.valueOf(shop.tags().contains("回头客多") ? 5 : 2));
+                .add(BigDecimal.valueOf(shop.tags().contains("回头客多") ? 5 : 2))
+                .add(favoriteBoost);
     }
 }

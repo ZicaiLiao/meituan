@@ -2,6 +2,7 @@ services:
   mysql:
     image: mysql:8.4
     container_name: meituan-mysql
+    restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: meituan_demo
@@ -9,16 +10,30 @@ services:
       - "3306:3306"
     volumes:
       - ./mysql/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -proot --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
   redis:
     image: redis:7.2
     container_name: meituan-redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
 
   rocketmq-nameserver:
     image: apache/rocketmq:5.3.1
     container_name: meituan-rmq-nameserver
+    restart: unless-stopped
     command: sh mqnamesrv
     ports:
       - "9876:9876"
@@ -26,36 +41,52 @@ services:
   rocketmq-broker:
     image: apache/rocketmq:5.3.1
     container_name: meituan-rmq-broker
+    restart: unless-stopped
     depends_on:
       - rocketmq-nameserver
     environment:
       NAMESRV_ADDR: rocketmq-nameserver:9876
-    command: sh mqbroker -n rocketmq-nameserver:9876 --enable-proxy
+    command: sh mqbroker -n rocketmq-nameserver:9876 -c /home/rocketmq/rocketmq-5.3.1/conf/broker.conf --enable-proxy
     ports:
       - "10911:10911"
       - "10909:10909"
+    volumes:
+      - ./rocketmq/broker.conf:/home/rocketmq/rocketmq-5.3.1/conf/broker.conf:ro
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
     container_name: meituan-es
+    restart: unless-stopped
     environment:
       discovery.type: single-node
       xpack.security.enabled: "false"
       ES_JAVA_OPTS: "-Xms512m -Xmx512m"
     ports:
       - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9200 >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
 
   backend:
     build:
       context: ..
       dockerfile: backend/Dockerfile
     container_name: meituan-backend
+    restart: unless-stopped
     depends_on:
-      - mysql
-      - redis
-      - rocketmq-nameserver
-      - rocketmq-broker
-      - elasticsearch
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rocketmq-nameserver:
+        condition: service_started
+      rocketmq-broker:
+        condition: service_started
+      elasticsearch:
+        condition: service_healthy
     environment:
       MEITUAN_DB_URL: jdbc:mysql://mysql:3306/meituan_demo?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8
       MEITUAN_DB_USERNAME: root
@@ -63,6 +94,8 @@ services:
       MEITUAN_REDIS_HOST: redis
       MEITUAN_REDIS_PORT: 6379
       MEITUAN_ROCKETMQ_NAME_SERVER: rocketmq-nameserver:9876
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8080:8080"
 
@@ -71,6 +104,7 @@ services:
       context: ..
       dockerfile: netty-gateway/Dockerfile
     container_name: meituan-netty-gateway
+    restart: unless-stopped
     depends_on:
       - backend
     ports:
@@ -81,8 +115,11 @@ services:
       context: ../apps/user-h5
       dockerfile: Dockerfile
     container_name: meituan-user-h5
+    restart: unless-stopped
     depends_on:
       - backend
+    environment:
+      VITE_PROXY_TARGET: http://backend:8080
     ports:
       - "5173:5173"
 
@@ -91,8 +128,11 @@ services:
       context: ../apps/merchant
       dockerfile: Dockerfile
     container_name: meituan-merchant
+    restart: unless-stopped
     depends_on:
       - backend
+    environment:
+      VITE_PROXY_TARGET: http://backend:8080
     ports:
       - "5174:5174"
 
@@ -101,8 +141,11 @@ services:
       context: ../apps/rider
       dockerfile: Dockerfile
     container_name: meituan-rider
+    restart: unless-stopped
     depends_on:
       - backend
+    environment:
+      VITE_PROXY_TARGET: http://backend:8080
     ports:
       - "5175:5175"
 
@@ -111,8 +154,11 @@ services:
       context: ../apps/admin
       dockerfile: Dockerfile
     container_name: meituan-admin
+    restart: unless-stopped
     depends_on:
       - backend
+    environment:
+      VITE_PROXY_TARGET: http://backend:8080
     ports:
       - "5176:5176"
 

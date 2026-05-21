@@ -49,6 +49,20 @@ button.secondary {
   color: #0f172a;
 }
 
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+input,
+select {
+  width: 100%;
+  border: 1px solid #dbe2ea;
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-top: 8px;
+}
+
 .row {
   display: flex;
   justify-content: space-between;
@@ -66,4 +80,3 @@ button.secondary {
     grid-template-columns: 1fr;
   }
 }
-

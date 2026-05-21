@@ -1,8 +1,6 @@
 package com.meituan.demo.backend.security;
 
-import com.meituan.demo.backend.model.DomainModels.Role;
 import java.io.IOException;
-import java.util.Locale;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -15,6 +13,12 @@ import jakarta.servlet.http.HttpServletResponse;
 
 @Component
 public class DemoAuthenticationFilter extends OncePerRequestFilter {
+
+    private final JwtService jwtService;
+
+    public DemoAuthenticationFilter(JwtService jwtService) {
+        this.jwtService = jwtService;
+    }
 
     @Override
     protected boolean shouldNotFilterAsyncDispatch() {
@@ -32,27 +36,15 @@ public class DemoAuthenticationFilter extends OncePerRequestFilter {
             token = request.getParameter("token");
         }
         if (StringUtils.hasText(token)) {
-            DemoUserPrincipal principal = parseToken(token);
-            if (principal != null) {
+            try {
+                DemoUserPrincipal principal = jwtService.parse(token);
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(principal, token, principal.getAuthorities());
                 SecurityContextHolder.getContext().setAuthentication(authentication);
+            } catch (Exception ignored) {
+                // Invalid or expired token should simply fall through to Spring Security's access checks.
             }
         }
         filterChain.doFilter(request, response);
-    }
-
-    private DemoUserPrincipal parseToken(String token) {
-        String[] parts = token.split("-");
-        if (parts.length != 3 || !"demo".equals(parts[0])) {
-            return null;
-        }
-        try {
-            Role role = Role.valueOf(parts[1].toUpperCase(Locale.ROOT));
-            Long userId = Long.parseLong(parts[2]);
-            return new DemoUserPrincipal(userId, parts[1] + "-" + userId, role);
-        } catch (IllegalArgumentException ex) {
-            return null;
-        }
     }
 }

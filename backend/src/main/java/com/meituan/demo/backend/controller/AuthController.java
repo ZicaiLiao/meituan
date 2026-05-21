@@ -2,6 +2,7 @@ package com.meituan.demo.backend.controller;
 
 import com.meituan.demo.backend.model.ApiModels.LoginRequest;
 import com.meituan.demo.backend.model.ApiModels.LoginResponse;
+import com.meituan.demo.backend.model.ApiModels.RegisterRequest;
 import com.meituan.demo.backend.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,5 +25,9 @@ public class AuthController {
     public LoginResponse login(@PathVariable String role, @Valid @RequestBody LoginRequest request) {
         return authService.login(role, request);
     }
-}
 
+    @PostMapping("/{role}/register")
+    public LoginResponse register(@PathVariable String role, @Valid @RequestBody RegisterRequest request) {
+        return authService.register(role, request);
+    }
+}

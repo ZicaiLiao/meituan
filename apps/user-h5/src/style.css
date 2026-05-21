@@ -138,9 +138,22 @@ input {
   margin-bottom: 8px;
 }
 
+select {
+  width: 100%;
+  border: 1px solid #d9e2ec;
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: white;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 @media (max-width: 520px) {
   .grid-two {
     grid-template-columns: 1fr;
   }
 }
-

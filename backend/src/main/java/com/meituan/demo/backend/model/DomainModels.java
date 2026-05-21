@@ -40,9 +40,11 @@ public final class DomainModels {
             String username,
             String displayName,
             String phone,
+            String email,
             String level,
             Long shopId,
-            boolean active) {
+            boolean active,
+            String avatarUrl) {
     }
 
     public record Shop(
@@ -57,7 +59,10 @@ public final class DomainModels {
             BigDecimal averagePrice,
             double distanceKm,
             List<String> tags,
-            String announcement) {
+            String announcement,
+            String status,
+            List<String> serviceModes,
+            BigDecimal minOrderAmount) {
     }
 
     public record Product(
@@ -69,10 +74,18 @@ public final class DomainModels {
             BigDecimal originalPrice,
             int stock,
             int monthlySales,
-            String description) {
+            String description,
+            boolean enabled) {
     }
 
-    public record Address(Long id, Long userId, String label, String detail, String contactName, String phone) {
+    public record Address(
+            Long id,
+            Long userId,
+            String label,
+            String detail,
+            String contactName,
+            String phone,
+            boolean isDefault) {
     }
 
     public record Coupon(
@@ -111,7 +124,10 @@ public final class DomainModels {
             Long couponId,
             Long addressId,
             Instant createdAt,
-            List<OrderLine> items) {
+            List<OrderLine> items,
+            Integer reviewScore,
+            String reviewContent,
+            Instant reviewedAt) {
     }
 
     public record Conversation(

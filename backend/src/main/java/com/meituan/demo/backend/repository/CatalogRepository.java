@@ -2,106 +2,224 @@ package com.meituan.demo.backend.repository;
 
 import com.meituan.demo.backend.model.DomainModels.Product;
 import com.meituan.demo.backend.model.DomainModels.Shop;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import com.meituan.demo.backend.persistence.PersistenceEntities.ProductEntity;
+import com.meituan.demo.backend.persistence.PersistenceEntities.SearchHistoryEntity;
+import com.meituan.demo.backend.persistence.PersistenceEntities.ShopEntity;
+import com.meituan.demo.backend.persistence.mapper.CatalogMapper;
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public class CatalogRepository {
 
-    private final JdbcTemplate jdbcTemplate;
+    private final CatalogMapper catalogMapper;
 
-    public CatalogRepository(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+    public CatalogRepository(CatalogMapper catalogMapper) {
+        this.catalogMapper = catalogMapper;
     }
 
     public List<Shop> findAllShops() {
-        return jdbcTemplate.query("SELECT * FROM shops ORDER BY id", this::mapShop);
+        return catalogMapper.findAllShops().stream().map(this::toShop).toList();
     }
 
     public Optional<Shop> findShopById(Long shopId) {
-        return jdbcTemplate.query("SELECT * FROM shops WHERE id = ?", this::mapShop, shopId).stream().findFirst();
+        return Optional.ofNullable(catalogMapper.findShopById(shopId)).map(this::toShop);
+    }
+
+    public Optional<ShopEntity> findShopEntityByMerchantId(Long merchantId) {
+        return Optional.ofNullable(catalogMapper.findShopByMerchantId(merchantId));
     }
 
     public List<Shop> findSimilarShops(String category, Long excludedShopId, int limit) {
-        return jdbcTemplate.query("SELECT * FROM shops WHERE category = ? AND id <> ? ORDER BY score DESC LIMIT ?",
-                this::mapShop, category, excludedShopId, limit);
+        return catalogMapper.findSimilarShops(category, excludedShopId, limit).stream().map(this::toShop).toList();
     }
 
     public List<Product> findProductsByShopId(Long shopId) {
-        return jdbcTemplate.query("SELECT * FROM products WHERE shop_id = ? ORDER BY monthly_sales DESC, id",
-                this::mapProduct, shopId);
+        return catalogMapper.findProductsByShopId(shopId).stream().map(this::toProduct).toList();
     }
 
     public List<Product> searchProducts(String keyword, int limit) {
-        String like = "%" + keyword + "%";
-        return jdbcTemplate.query("""
-                SELECT * FROM products
-                WHERE LOWER(name) LIKE LOWER(?) OR LOWER(category) LIKE LOWER(?)
-                ORDER BY monthly_sales DESC, id
-                LIMIT ?
-                """, this::mapProduct, like, like, limit);
+        return catalogMapper.searchProducts(keyword, limit).stream().map(this::toProduct).toList();
     }
 
     public List<Product> findTopProducts(int limit) {
-        return jdbcTemplate.query("SELECT * FROM products ORDER BY monthly_sales DESC, id LIMIT ?", this::mapProduct, limit);
+        return catalogMapper.findTopProducts(limit).stream().map(this::toProduct).toList();
     }
 
     public int countShops() {
-        Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM shops", Integer.class);
-        return count == null ? 0 : count;
+        return Optional.ofNullable(catalogMapper.countShops()).orElse(0);
     }
 
     public int countProducts() {
-        Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM products", Integer.class);
-        return count == null ? 0 : count;
+        return Optional.ofNullable(catalogMapper.countProducts()).orElse(0);
     }
 
     public Map<Long, Product> findProductsByIds(Collection<Long> productIds) {
         if (productIds.isEmpty()) {
             return Map.of();
         }
-        String placeholders = productIds.stream().map(unused -> "?").collect(Collectors.joining(","));
-        List<Object> params = productIds.stream().map(Long.class::cast).map(Object.class::cast).toList();
-        return jdbcTemplate.query("SELECT * FROM products WHERE id IN (" + placeholders + ")", this::mapProduct, params.toArray())
-                .stream()
+        return catalogMapper.findProductsByIds(productIds).stream()
+                .map(this::toProduct)
                 .collect(Collectors.toMap(Product::id, product -> product));
     }
 
-    private Shop mapShop(ResultSet rs, int rowNum) throws SQLException {
-        return new Shop(
-                rs.getLong("id"),
-                rs.getLong("merchant_id"),
-                rs.getString("name"),
-                rs.getString("category"),
-                rs.getBigDecimal("score"),
-                rs.getInt("monthly_sales"),
-                rs.getBigDecimal("delivery_fee"),
-                rs.getInt("delivery_minutes"),
-                rs.getBigDecimal("average_price"),
-                rs.getDouble("distance_km"),
-                parseCsv(rs.getString("tags")),
-                rs.getString("announcement"));
+    public Shop createShop(
+            Long merchantId,
+            String name,
+            String category,
+            BigDecimal deliveryFee,
+            int deliveryMinutes,
+            BigDecimal averagePrice,
+            List<String> tags,
+            String announcement,
+            String status,
+            List<String> serviceModes,
+            BigDecimal minOrderAmount) {
+        catalogMapper.insertShop(
+                merchantId,
+                name,
+                category,
+                new BigDecimal("5.00"),
+                0,
+                deliveryFee,
+                deliveryMinutes,
+                averagePrice,
+                1.0D,
+                String.join(",", tags),
+                announcement,
+                status,
+                String.join(",", serviceModes),
+                minOrderAmount.toPlainString(),
+                Instant.now());
+        return findShopById(catalogMapper.lastInsertId()).orElseThrow();
     }
 
-    private Product mapProduct(ResultSet rs, int rowNum) throws SQLException {
+    public void updateShop(
+            Long shopId,
+            String name,
+            String category,
+            BigDecimal deliveryFee,
+            int deliveryMinutes,
+            BigDecimal averagePrice,
+            List<String> tags,
+            String announcement,
+            String status,
+            List<String> serviceModes,
+            BigDecimal minOrderAmount) {
+        catalogMapper.updateShop(
+                shopId,
+                name,
+                category,
+                deliveryFee,
+                deliveryMinutes,
+                averagePrice,
+                String.join(",", tags),
+                announcement,
+                status,
+                String.join(",", serviceModes),
+                minOrderAmount.toPlainString());
+    }
+
+    public Product createProduct(
+            Long shopId,
+            String name,
+            String category,
+            BigDecimal price,
+            BigDecimal originalPrice,
+            int stock,
+            String description,
+            boolean enabled) {
+        catalogMapper.insertProduct(shopId, name, category, price, originalPrice, stock, 0, description, enabled, Instant.now());
+        Long productId = catalogMapper.lastInsertId();
+        return catalogMapper.findProductsByIds(List.of(productId)).stream().findFirst().map(this::toProduct).orElseThrow();
+    }
+
+    public boolean reserveStock(Long productId, int quantity) {
+        return catalogMapper.reserveStock(productId, quantity) > 0;
+    }
+
+    public void restoreStock(Long productId, int quantity) {
+        catalogMapper.restoreStock(productId, quantity);
+    }
+
+    public void updateProduct(
+            Long productId,
+            Long shopId,
+            String name,
+            String category,
+            BigDecimal price,
+            BigDecimal originalPrice,
+            int stock,
+            String description,
+            boolean enabled) {
+        catalogMapper.updateProduct(productId, shopId, name, category, price, originalPrice, stock, description, enabled);
+    }
+
+    public void deleteProduct(Long productId, Long shopId) {
+        catalogMapper.deleteProduct(productId, shopId);
+    }
+
+    public List<Long> findFavoriteShopIds(Long userId) {
+        return catalogMapper.findFavoriteShops(userId).stream().map(entity -> entity.shopId()).toList();
+    }
+
+    public void addFavoriteShop(Long userId, Long shopId) {
+        catalogMapper.addFavoriteShop(userId, shopId, Instant.now());
+    }
+
+    public void removeFavoriteShop(Long userId, Long shopId) {
+        catalogMapper.removeFavoriteShop(userId, shopId);
+    }
+
+    public List<String> searchHistory(Long userId, int limit) {
+        return catalogMapper.findSearchHistory(userId, limit).stream().map(SearchHistoryEntity::keyword).toList();
+    }
+
+    public void recordSearchHistory(Long userId, String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return;
+        }
+        catalogMapper.addSearchHistory(userId, keyword.trim(), Instant.now());
+    }
+
+    private Shop toShop(ShopEntity entity) {
+        return new Shop(
+                entity.id(),
+                entity.merchantId(),
+                entity.name(),
+                entity.category(),
+                entity.score(),
+                entity.monthlySales(),
+                entity.deliveryFee(),
+                entity.deliveryMinutes(),
+                entity.averagePrice(),
+                entity.distanceKm(),
+                parseCsv(entity.tags()),
+                entity.announcement(),
+                entity.status(),
+                parseCsv(entity.serviceModes()),
+                entity.minOrderAmount() == null ? BigDecimal.ZERO : new BigDecimal(entity.minOrderAmount()));
+    }
+
+    private Product toProduct(ProductEntity entity) {
         return new Product(
-                rs.getLong("id"),
-                rs.getLong("shop_id"),
-                rs.getString("name"),
-                rs.getString("category"),
-                rs.getBigDecimal("price"),
-                rs.getBigDecimal("original_price"),
-                rs.getInt("stock"),
-                rs.getInt("monthly_sales"),
-                rs.getString("description"));
+                entity.id(),
+                entity.shopId(),
+                entity.name(),
+                entity.category(),
+                entity.price(),
+                entity.originalPrice(),
+                entity.stock(),
+                entity.monthlySales(),
+                entity.description(),
+                Boolean.TRUE.equals(entity.enabled()));
     }
 
     private List<String> parseCsv(String value) {

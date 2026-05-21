@@ -15,11 +15,27 @@ spring:
     redis:
       host: ${MEITUAN_REDIS_HOST:localhost}
       port: ${MEITUAN_REDIS_PORT:6379}
+  sql:
+    init:
+      mode: always
+      encoding: UTF-8
+      continue-on-error: true
 
 rocketmq:
   name-server: ${MEITUAN_ROCKETMQ_NAME_SERVER:localhost:9876}
   producer:
     group: meituan-demo-producer
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+    default-fetch-size: 100
+  type-aliases-package: com.meituan.demo.backend.persistence
+
+meituan:
+  security:
+    jwt-secret: ${MEITUAN_JWT_SECRET:meituan-demo-super-secret-key-meituan-demo-super-secret-key}
+    access-token-minutes: ${MEITUAN_JWT_ACCESS_MINUTES:180}
 
 management:
   endpoints:

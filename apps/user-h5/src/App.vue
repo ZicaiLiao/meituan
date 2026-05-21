@@ -55,6 +55,18 @@ const liveEvents = ref<string[]>([]);
 const featuredProductByShop = ref<Record<number, number>>({});
 const latestTimeline = ref<TimelineItem[]>([]);
 
+async function refreshOrders() {
+  orders.value = await api<Order[]>('/api/orders');
+}
+
+async function refreshLatestTimeline() {
+  if (orders.value.length === 0) {
+    latestTimeline.value = [];
+    return;
+  }
+  latestTimeline.value = await api<TimelineItem[]>(`/api/orders/${orders.value[0].id}/timeline`);
+}
+
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${apiBase}${path}`, {
     ...options,
@@ -103,9 +115,7 @@ async function loadAll() {
       .map((detail) => [detail.shop.id, detail.products?.[0]?.id])
       .filter((entry) => entry[1] !== undefined)
   );
-  if (orderData.length > 0) {
-    latestTimeline.value = await api<TimelineItem[]>(`/api/orders/${orderData[0].id}/timeline`);
-  }
+  await refreshLatestTimeline();
   statusText.value = '演示数据已就绪，可直接体验加购、下单和聊天。';
 }
 
@@ -115,6 +125,10 @@ async function addToCart(productId: number) {
     body: JSON.stringify({ productId, quantity: 1 })
   });
   statusText.value = `商品 ${productId} 已加入购物车`;
+}
+
+async function clearCart() {
+  await api('/api/cart', { method: 'DELETE' });
 }
 
 function resolveDefaultProductId(): number | undefined {
@@ -137,16 +151,31 @@ async function ensureCartReady() {
 async function createOrderAndPay() {
   try {
     await ensureCartReady();
-    const created = await api<Order>('/api/orders', {
-      method: 'POST',
-      body: JSON.stringify({ couponId: 6101, addressId: 6001 })
-    });
+    let created: Order;
+    try {
+      created = await api<Order>('/api/orders', {
+        method: 'POST',
+        body: JSON.stringify({ couponId: 6101, addressId: 6001 })
+      });
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.includes('multiple shops')) {
+        throw error;
+      }
+      // 用户侧只支持单店结算，发现混合购物车时自动清空并重建一份当前店铺购物车。
+      await clearCart();
+      await ensureCartReady();
+      created = await api<Order>('/api/orders', {
+        method: 'POST',
+        body: JSON.stringify({ couponId: 6101, addressId: 6001 })
+      });
+      statusText.value = '已为你清理跨店购物车并重新生成订单';
+    }
     const paid = await api<Order>(`/api/orders/${created.id}/pay`, {
       method: 'POST',
       body: JSON.stringify({ paymentChannel: 'MOCK_PAY' })
     });
     orders.value = [paid, ...orders.value.filter((order) => order.id !== paid.id)];
-    latestTimeline.value = await api<TimelineItem[]>(`/api/orders/${paid.id}/timeline`);
+    await refreshLatestTimeline();
     statusText.value = `订单 #${paid.id} 已创建并支付，等待商家接单`;
   } catch (error) {
     statusText.value = error instanceof Error ? error.message : '下单失败，请稍后重试';
@@ -182,9 +211,13 @@ onMounted(async () => {
   const source = new EventSource(`${apiBase}/api/stream/events?token=${accessToken.value}`);
   ['connected', 'payment.succeeded', 'merchant.accepted', 'merchant.rejected', 'rider.accepted', 'delivery.completed', 'chat.message']
     .forEach((eventName) => {
-      source.addEventListener(eventName, (event: MessageEvent) => {
+      source.addEventListener(eventName, async (event: MessageEvent) => {
         liveEvents.value = [`${eventName}: ${event.data}`, ...liveEvents.value].slice(0, 6);
         statusText.value = `收到实时事件：${eventName}`;
+        if (eventName !== 'connected') {
+          await refreshOrders();
+          await refreshLatestTimeline();
+        }
       });
     });
   source.onerror = () => {

@@ -4,9 +4,14 @@ import { onMounted, ref } from 'vue';
 const apiBase = 'http://localhost:8080';
 const accessToken = ref('');
 const availableOrders = ref<any[]>([]);
-const myOrders = ref<any[]>([]);
+const assignedOrders = ref<any[]>([]);
+const conversations = ref<any[]>([]);
 const statusText = ref('骑手控制台加载中...');
 const liveEvents = ref<string[]>([]);
+
+function canDeliver(order: any) {
+  return order.status === 'DELIVERING';
+}
 
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${apiBase}${path}`, {
@@ -30,12 +35,14 @@ async function login() {
 }
 
 async function loadAll() {
-  const [available, mine] = await Promise.all([
+  const [available, mine, conversationData] = await Promise.all([
     api<any[]>('/api/rider/orders/available'),
+    api<any[]>('/api/rider/orders/mine'),
     api<any[]>('/api/rider/chat/conversations')
   ]);
   availableOrders.value = available;
-  myOrders.value = mine;
+  assignedOrders.value = mine;
+  conversations.value = conversationData;
   statusText.value = '当前可查看抢单池、配送中订单与相关会话。';
 }
 
@@ -86,13 +93,23 @@ onMounted(async () => {
     </section>
 
     <section class="card">
+      <h2>配送中订单</h2>
+      <div v-for="order in assignedOrders" :key="order.id" class="row">
+        <div>
+          <strong>#{{ order.id }}</strong>
+          <div>状态：{{ order.status }} · 用户 {{ order.userId }} · 实付 {{ order.payableAmount }}</div>
+        </div>
+        <button @click="deliver(order.id)" :disabled="!canDeliver(order)">标记送达</button>
+      </div>
+    </section>
+
+    <section class="card">
       <h2>协同会话</h2>
-      <div v-for="conversation in myOrders" :key="conversation.id" class="row">
+      <div v-for="conversation in conversations" :key="conversation.id" class="row">
         <div>
           <strong>{{ conversation.title }}</strong>
           <div>场景：{{ conversation.scene }} · 订单 {{ conversation.orderId }}</div>
         </div>
-        <button @click="deliver(conversation.orderId)">标记送达</button>
       </div>
       <ul>
         <li v-for="eventItem in liveEvents" :key="eventItem">{{ eventItem }}</li>

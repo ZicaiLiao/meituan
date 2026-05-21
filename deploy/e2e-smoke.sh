@@ -24,6 +24,9 @@ shops="$(curl -s "$API/api/shops" -H "Authorization: Bearer $customer_token")"
 search="$(curl -s "$API/api/search?q=%E5%B7%9D" -H "Authorization: Bearer $customer_token")"
 cart_before="$(curl -s "$API/api/cart" -H "Authorization: Bearer $customer_token")"
 
+curl -s -X DELETE "$API/api/cart" \
+  -H "Authorization: Bearer $customer_token" >/dev/null
+
 curl -s -X POST "$API/api/cart/items" \
   -H "Authorization: Bearer $customer_token" \
   -H "Content-Type: application/json" \

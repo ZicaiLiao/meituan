@@ -46,9 +46,8 @@ public class StreamService {
     private void send(String key, SseEmitter emitter, String event, EventPayload payload) {
         try {
             emitter.send(SseEmitter.event().name(event).data(payload));
-        } catch (IOException | IllegalStateException ex) {
+        } catch (Exception ex) {
             remove(key, emitter);
-            emitter.complete();
         }
     }
 

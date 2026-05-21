@@ -67,6 +67,11 @@ public class OrderService {
     }
 
     @Transactional
+    public void clearCart(Long userId) {
+        orderRepository.clearCart(userId);
+    }
+
+    @Transactional
     public Order createOrder(DemoUserPrincipal principal, CreateOrderRequest request) {
         List<CartItem> cart = getCart(principal.id());
         if (cart.isEmpty()) {
@@ -193,6 +198,7 @@ public class OrderService {
         }
         Order updated = orderRepository.updateOrderStatus(orderId, OrderStatus.COMPLETED, principal.id());
         orderRepository.appendStatusLog(orderId, OrderStatus.COMPLETED, "订单已送达");
+        notifyMerchant(current.shopId(), "delivery.completed", "订单已完成", "订单 #" + orderId + " 已由骑手送达");
         streamService.notifyUser(Role.CUSTOMER, current.userId(), "delivery.completed", "订单已送达", "感谢使用，欢迎对本次订单进行评价");
         integrationEventService.publish("delivery-completed", Map.of("orderId", orderId, "riderId", principal.id()));
         return updated;

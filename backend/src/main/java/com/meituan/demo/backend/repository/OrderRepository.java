@@ -113,7 +113,7 @@ public class OrderRepository {
     public List<Order> findOrdersByRiderId(Long riderId) {
         return withItems(jdbcTemplate.query("""
                 SELECT * FROM orders
-                WHERE rider_id = ? OR status = 'RIDER_PENDING'
+                WHERE rider_id = ?
                 ORDER BY created_at DESC, id DESC
                 """, this::mapOrderRow, riderId));
     }

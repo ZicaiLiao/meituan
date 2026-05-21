@@ -17,6 +17,11 @@ import jakarta.servlet.http.HttpServletResponse;
 public class DemoAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
+    protected boolean shouldNotFilterAsyncDispatch() {
+        return false;
+    }
+
+    @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         String header = request.getHeader("Authorization");

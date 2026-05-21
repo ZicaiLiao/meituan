@@ -9,6 +9,10 @@ const conversations = ref<any[]>([]);
 const statusText = ref('准备连接商家后台...');
 const liveEvents = ref<string[]>([]);
 
+function canMerchantHandle(order: any) {
+  return order.status === 'PAID_WAITING_MERCHANT';
+}
+
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${apiBase}${path}`, {
     ...options,
@@ -58,7 +62,7 @@ onMounted(async () => {
   await login();
   await loadAll();
   const source = new EventSource(`${apiBase}/api/merchant/stream/events?token=${accessToken.value}`);
-  ['connected', 'order.created', 'payment.succeeded', 'rider.accepted'].forEach((eventName) => {
+  ['connected', 'order.created', 'payment.succeeded', 'rider.accepted', 'delivery.completed'].forEach((eventName) => {
     source.addEventListener(eventName, async (event: MessageEvent) => {
       liveEvents.value = [`${eventName}: ${event.data}`, ...liveEvents.value].slice(0, 6);
       statusText.value = `收到实时事件：${eventName}`;
@@ -104,8 +108,8 @@ onMounted(async () => {
           <div>状态：{{ order.status }} · 实付 {{ order.payableAmount }}</div>
         </div>
         <div>
-          <button @click="accept(order.id)">接单</button>
-          <button class="secondary" @click="reject(order.id)">拒单</button>
+          <button @click="accept(order.id)" :disabled="!canMerchantHandle(order)">接单</button>
+          <button class="secondary" @click="reject(order.id)" :disabled="!canMerchantHandle(order)">拒单</button>
         </div>
       </div>
     </section>

@@ -30,6 +30,11 @@ public class RiderController {
         return orderService.availableOrders();
     }
 
+    @GetMapping("/orders/mine")
+    public Object myOrders() {
+        return orderService.ordersForPrincipal(securitySupport.currentUser());
+    }
+
     @PostMapping("/orders/{orderId}/accept")
     public Object accept(@PathVariable Long orderId) {
         return orderService.riderAccept(orderId, securitySupport.currentUser());
@@ -45,4 +50,3 @@ public class RiderController {
         return chatService.conversationsForUser(securitySupport.currentUser());
     }
 }
-

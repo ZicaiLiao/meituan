@@ -6,68 +6,62 @@ import com.meituan.demo.backend.model.DomainModels.Conversation;
 import com.meituan.demo.backend.model.DomainModels.Message;
 import com.meituan.demo.backend.model.DomainModels.MessageType;
 import com.meituan.demo.backend.model.DomainModels.Role;
+import com.meituan.demo.backend.repository.ChatRepository;
+import com.meituan.demo.backend.repository.UserRepository;
 import com.meituan.demo.backend.security.DemoUserPrincipal;
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 @Service
 public class ChatService {
 
-    private final DemoDataStore dataStore;
+    private final ChatRepository chatRepository;
+    private final UserRepository userRepository;
     private final StreamService streamService;
     private final IntegrationEventService integrationEventService;
 
-    public ChatService(DemoDataStore dataStore, StreamService streamService, IntegrationEventService integrationEventService) {
-        this.dataStore = dataStore;
+    public ChatService(
+            ChatRepository chatRepository,
+            UserRepository userRepository,
+            StreamService streamService,
+            IntegrationEventService integrationEventService) {
+        this.chatRepository = chatRepository;
+        this.userRepository = userRepository;
         this.streamService = streamService;
         this.integrationEventService = integrationEventService;
     }
 
     public List<Conversation> conversationsForUser(DemoUserPrincipal principal) {
-        return dataStore.conversations().values().stream()
-                .filter(conversation -> conversation.participantIds().contains(principal.id()))
-                .sorted(Comparator.comparing(Conversation::id).reversed())
-                .toList();
+        return chatRepository.findConversationsByUserId(principal.id());
     }
 
     public Conversation createConversation(DemoUserPrincipal principal, CreateConversationRequest request) {
-        Set<Long> participantIds = Set.copyOf(request.participantIds());
-        Map<Long, Role> roles = participantIds.stream()
-                .collect(Collectors.toMap(id -> id, id -> dataStore.users().get(id).role()));
-        Conversation conversation = new Conversation(dataStore.nextConversationId(), request.scene(),
-                request.orderId(), request.title(), participantIds, roles);
-        dataStore.conversations().put(conversation.id(), conversation);
-        dataStore.messagesByConversation().put(conversation.id(), new ArrayList<>(List.of(new Message(
-                dataStore.nextMessageId(),
-                conversation.id(),
-                principal.id(),
-                principal.role(),
-                MessageType.SYSTEM,
-                "会话已创建",
-                Instant.now()))));
+        Map<Long, Role> roles = new LinkedHashMap<>(userRepository.findRolesByUserIds(request.participantIds()));
+        roles.put(principal.id(), principal.role());
+        if (roles.isEmpty()) {
+            throw new IllegalArgumentException("At least one participant is required");
+        }
+
+        Conversation created = chatRepository.createConversation(request.scene(), request.orderId(), request.title());
+        chatRepository.addParticipants(created.id(), roles);
+        chatRepository.createMessage(created.id(), principal.id(), principal.role(), MessageType.SYSTEM, "会话已创建");
+        Conversation conversation = chatRepository.findConversationById(created.id()).orElseThrow();
         streamService.notifyUsers(roles, "conversation.created", "新会话", request.title());
         return conversation;
     }
 
     public List<Message> messages(Long conversationId) {
-        return dataStore.messagesByConversation().getOrDefault(conversationId, List.of());
+        return chatRepository.findMessages(conversationId);
     }
 
     public Message createMessage(DemoUserPrincipal principal, CreateMessageRequest request) {
         MessageType type = request.type() == null ? MessageType.TEXT : request.type();
-        Message message = new Message(dataStore.nextMessageId(), request.conversationId(), principal.id(),
-                principal.role(), type, request.content(), Instant.now());
-        dataStore.messagesByConversation()
-                .computeIfAbsent(request.conversationId(), unused -> new ArrayList<>())
-                .add(message);
-
-        Conversation conversation = dataStore.conversations().get(request.conversationId());
+        Message message = chatRepository.createMessage(request.conversationId(), principal.id(), principal.role(), type, request.content());
+        Conversation conversation = chatRepository.findConversationById(request.conversationId())
+                .orElseThrow(() -> new IllegalArgumentException("Conversation not found: " + request.conversationId()));
         Map<Long, Role> recipients = conversation.participantRoles().entrySet().stream()
                 .filter(entry -> !entry.getKey().equals(principal.id()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -77,4 +71,3 @@ public class ChatService {
         return message;
     }
 }
-

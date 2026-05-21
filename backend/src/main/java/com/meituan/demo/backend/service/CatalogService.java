@@ -4,6 +4,7 @@ import com.meituan.demo.backend.model.DomainModels.Product;
 import com.meituan.demo.backend.model.DomainModels.RecommendationBundle;
 import com.meituan.demo.backend.model.DomainModels.SearchResult;
 import com.meituan.demo.backend.model.DomainModels.Shop;
+import com.meituan.demo.backend.repository.CatalogRepository;
 import com.meituan.demo.backend.security.DemoUserPrincipal;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -16,10 +17,10 @@ import org.springframework.stereotype.Service;
 @Service
 public class CatalogService {
 
-    private final DemoDataStore dataStore;
+    private final CatalogRepository catalogRepository;
 
-    public CatalogService(DemoDataStore dataStore) {
-        this.dataStore = dataStore;
+    public CatalogService(CatalogRepository catalogRepository) {
+        this.catalogRepository = catalogRepository;
     }
 
     public List<Shop> listShops(String keyword, String sort) {
@@ -27,32 +28,19 @@ public class CatalogService {
     }
 
     public Map<String, Object> shopDetail(Long shopId) {
-        Shop shop = dataStore.shops().get(shopId);
-        List<Product> products = dataStore.products().values().stream()
-                .filter(product -> product.shopId().equals(shopId))
-                .sorted(Comparator.comparing(Product::monthlySales).reversed())
-                .toList();
-        List<Shop> similarShops = dataStore.shops().values().stream()
-                .filter(candidate -> !candidate.id().equals(shopId))
-                .filter(candidate -> candidate.category().equals(shop.category()))
-                .limit(2)
-                .toList();
-        return Map.of(
-                "shop", shop,
-                "products", products,
-                "similarShops", similarShops);
+        Shop shop = catalogRepository.findShopById(shopId)
+                .orElseThrow(() -> new IllegalArgumentException("Shop not found: " + shopId));
+        List<Product> products = catalogRepository.findProductsByShopId(shopId);
+        List<Shop> similarShops = catalogRepository.findSimilarShops(shop.category(), shopId, 2);
+        return Map.of("shop", shop, "products", products, "similarShops", similarShops);
     }
 
     public SearchResult search(String keyword, String sort) {
         List<Shop> shops = rankShops(keyword, sort);
         String normalized = keyword == null ? "" : keyword.toLowerCase(Locale.ROOT);
-        List<Product> products = dataStore.products().values().stream()
-                .filter(product -> normalized.isBlank()
-                        || product.name().toLowerCase(Locale.ROOT).contains(normalized)
-                        || product.category().toLowerCase(Locale.ROOT).contains(normalized))
-                .sorted(Comparator.comparing(Product::monthlySales).reversed())
-                .limit(8)
-                .toList();
+        List<Product> products = normalized.isBlank()
+                ? catalogRepository.findTopProducts(8)
+                : catalogRepository.searchProducts(keyword, 8);
         List<String> suggestions = normalized.isBlank()
                 ? List.of("轻食", "烧烤", "奶茶")
                 : List.of(keyword + " 套餐", keyword + " 热门", keyword + " 附近");
@@ -60,7 +48,7 @@ public class CatalogService {
     }
 
     public RecommendationBundle homeRecommendations(DemoUserPrincipal principal) {
-        List<Shop> all = new ArrayList<>(dataStore.shops().values());
+        List<Shop> all = new ArrayList<>(catalogRepository.findAllShops());
         List<Shop> guess = all.stream()
                 .sorted(Comparator.comparing(this::compositeRecommendationScore).reversed())
                 .limit(3)
@@ -86,7 +74,7 @@ public class CatalogService {
             default -> Comparator.comparing(this::compositeSearchScore).reversed();
         };
 
-        return dataStore.shops().values().stream()
+        return catalogRepository.findAllShops().stream()
                 .filter(shop -> normalized.isBlank()
                         || shop.name().toLowerCase(Locale.ROOT).contains(normalized)
                         || shop.category().toLowerCase(Locale.ROOT).contains(normalized)
@@ -110,4 +98,3 @@ public class CatalogService {
                 .add(BigDecimal.valueOf(shop.tags().contains("回头客多") ? 5 : 2));
     }
 }
-

@@ -4,15 +4,20 @@ server:
 spring:
   application:
     name: meituan-backend
+  datasource:
+    url: ${MEITUAN_DB_URL:jdbc:mysql://localhost:3306/meituan_demo?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8}
+    username: ${MEITUAN_DB_USERNAME:root}
+    password: ${MEITUAN_DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
   jackson:
     default-property-inclusion: non_null
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${MEITUAN_REDIS_HOST:localhost}
+      port: ${MEITUAN_REDIS_PORT:6379}
 
 rocketmq:
-  name-server: localhost:9876
+  name-server: ${MEITUAN_ROCKETMQ_NAME_SERVER:localhost:9876}
   producer:
     group: meituan-demo-producer
 
@@ -27,4 +32,3 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
-

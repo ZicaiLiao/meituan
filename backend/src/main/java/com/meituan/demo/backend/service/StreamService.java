@@ -23,14 +23,16 @@ public class StreamService {
         emitters.computeIfAbsent(key, unused -> new CopyOnWriteArrayList<>()).add(emitter);
         emitter.onCompletion(() -> remove(key, emitter));
         emitter.onTimeout(() -> remove(key, emitter));
-        send(emitter, "connected", new EventPayload("connected", "连接成功", "实时事件流已建立", Instant.now()));
+        emitter.onError(unused -> remove(key, emitter));
+        send(key, emitter, "connected", new EventPayload("connected", "连接成功", "实时事件流已建立", Instant.now()));
         return emitter;
     }
 
     public void notifyUser(Role role, Long userId, String event, String title, String content) {
-        List<SseEmitter> targets = emitters.getOrDefault(key(role, userId), List.of());
+        String emitterKey = key(role, userId);
+        List<SseEmitter> targets = emitters.getOrDefault(emitterKey, List.of());
         EventPayload payload = new EventPayload(event, title, content, Instant.now());
-        targets.forEach(emitter -> send(emitter, event, payload));
+        targets.forEach(emitter -> send(emitterKey, emitter, event, payload));
     }
 
     public void notifyUsers(Map<Long, Role> users, String event, String title, String content) {
@@ -41,11 +43,12 @@ public class StreamService {
         emitters.getOrDefault(key, List.of()).remove(emitter);
     }
 
-    private void send(SseEmitter emitter, String event, EventPayload payload) {
+    private void send(String key, SseEmitter emitter, String event, EventPayload payload) {
         try {
             emitter.send(SseEmitter.event().name(event).data(payload));
-        } catch (IOException ex) {
-            emitter.completeWithError(ex);
+        } catch (IOException | IllegalStateException ex) {
+            remove(key, emitter);
+            emitter.complete();
         }
     }
 
@@ -53,4 +56,3 @@ public class StreamService {
         return role.name() + ":" + userId;
     }
 }
-

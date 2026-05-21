@@ -4,6 +4,9 @@ import com.meituan.demo.backend.model.ApiModels.SearchRebuildResponse;
 import com.meituan.demo.backend.model.DomainModels.Conversation;
 import com.meituan.demo.backend.model.DomainModels.Role;
 import com.meituan.demo.backend.model.DomainModels.User;
+import com.meituan.demo.backend.repository.CatalogRepository;
+import com.meituan.demo.backend.repository.ChatRepository;
+import com.meituan.demo.backend.repository.UserRepository;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
@@ -11,10 +14,14 @@ import org.springframework.stereotype.Service;
 @Service
 public class AdminService {
 
-    private final DemoDataStore dataStore;
+    private final UserRepository userRepository;
+    private final ChatRepository chatRepository;
+    private final CatalogRepository catalogRepository;
 
-    public AdminService(DemoDataStore dataStore) {
-        this.dataStore = dataStore;
+    public AdminService(UserRepository userRepository, ChatRepository chatRepository, CatalogRepository catalogRepository) {
+        this.userRepository = userRepository;
+        this.chatRepository = chatRepository;
+        this.catalogRepository = catalogRepository;
     }
 
     public List<User> merchants() {
@@ -26,23 +33,18 @@ public class AdminService {
     }
 
     public List<Conversation> supportConversations() {
-        return dataStore.conversations().values().stream()
-                .filter(conversation -> conversation.participantRoles().containsValue(Role.SUPPORT))
-                .toList();
+        return chatRepository.findSupportConversations();
     }
 
     public SearchRebuildResponse rebuildSearch() {
-        return new SearchRebuildResponse(true, "meituan-demo-v1", dataStore.shops().size(), dataStore.products().size());
+        return new SearchRebuildResponse(true, "meituan-demo-v1", catalogRepository.countShops(), catalogRepository.countProducts());
     }
 
     public Map<String, Object> merchantsAndShops() {
-        return Map.of("merchants", merchants(), "shops", dataStore.shops().values());
+        return Map.of("merchants", merchants(), "shops", catalogRepository.findAllShops());
     }
 
     private List<User> usersByRole(Role role) {
-        return dataStore.users().values().stream()
-                .filter(user -> user.role() == role)
-                .toList();
+        return userRepository.findByRole(role);
     }
 }
-

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 
-const token = 'demo-rider-3001';
 const apiBase = 'http://localhost:8080';
+const accessToken = ref('');
 const availableOrders = ref<any[]>([]);
 const myOrders = ref<any[]>([]);
 const statusText = ref('骑手控制台加载中...');
@@ -13,10 +13,20 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`
+      ...(accessToken.value ? { Authorization: `Bearer ${accessToken.value}` } : {})
     }
   });
   return response.json();
+}
+
+async function login() {
+  const response = await fetch(`${apiBase}/api/auth/rider/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'rider3001' })
+  });
+  const payload = await response.json();
+  accessToken.value = payload.accessToken;
 }
 
 async function loadAll() {
@@ -42,8 +52,9 @@ async function deliver(orderId: number) {
 }
 
 onMounted(async () => {
+  await login();
   await loadAll();
-  const source = new EventSource(`${apiBase}/api/rider/stream/events?token=${token}`);
+  const source = new EventSource(`${apiBase}/api/rider/stream/events?token=${accessToken.value}`);
   ['connected', 'merchant.accepted'].forEach((eventName) => {
     source.addEventListener(eventName, async (event: MessageEvent) => {
       liveEvents.value = [`${eventName}: ${event.data}`, ...liveEvents.value].slice(0, 6);

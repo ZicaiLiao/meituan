@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 
-const token = 'demo-admin-4001';
 const apiBase = 'http://localhost:8080';
+const accessToken = ref('');
 
 const merchants = ref<any>(null);
 const orderSummary = ref<any>(null);
@@ -15,10 +15,20 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`
+      ...(accessToken.value ? { Authorization: `Bearer ${accessToken.value}` } : {})
     }
   });
   return response.json();
+}
+
+async function login() {
+  const response = await fetch(`${apiBase}/api/auth/admin/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'admin4001' })
+  });
+  const payload = await response.json();
+  accessToken.value = payload.accessToken;
 }
 
 async function loadAll() {
@@ -36,7 +46,10 @@ async function loadAll() {
   supportConversations.value = conversationData as any[];
 }
 
-onMounted(loadAll);
+onMounted(async () => {
+  await login();
+  await loadAll();
+});
 </script>
 
 <template>

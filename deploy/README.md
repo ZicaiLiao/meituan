@@ -6,6 +6,9 @@ Run from the repository root:
 
 ```bash
 docker compose -f deploy/docker-compose.yml up -d --build
+
+The backend container is configured to use the real Docker MySQL, Redis, and RocketMQ services through environment variables.
+On startup, the backend auto-creates missing tables, patches legacy schema columns, and seeds sample business data only when a target table is empty.
 ```
 
 ## Backend
@@ -13,6 +16,12 @@ docker compose -f deploy/docker-compose.yml up -d --build
 ```bash
 mvn -pl backend spring-boot:run
 ```
+
+For local host execution outside Docker, the default datasource points to:
+
+- MySQL: `localhost:3306/meituan_demo`
+- Redis: `localhost:6379`
+- RocketMQ NameServer: `localhost:9876`
 
 ## Netty Gateway
 

@@ -1,5 +1,6 @@
 package com.meituan.demo.backend.controller;
 
+import com.meituan.demo.backend.repository.UserRepository;
 import com.meituan.demo.backend.security.SecuritySupport;
 import com.meituan.demo.backend.service.CatalogService;
 import com.meituan.demo.backend.service.ChatService;
@@ -23,30 +24,31 @@ public class MerchantController {
     private final OrderService orderService;
     private final MarketingService marketingService;
     private final ChatService chatService;
+    private final UserRepository userRepository;
 
     public MerchantController(
             SecuritySupport securitySupport,
             CatalogService catalogService,
             OrderService orderService,
             MarketingService marketingService,
-            ChatService chatService) {
+            ChatService chatService,
+            UserRepository userRepository) {
         this.securitySupport = securitySupport;
         this.catalogService = catalogService;
         this.orderService = orderService;
         this.marketingService = marketingService;
         this.chatService = chatService;
+        this.userRepository = userRepository;
     }
 
     @GetMapping("/shop")
     public Map<String, Object> shop() {
-        Long shopId = securitySupport.currentUser().id().equals(2001L) ? 3001L : securitySupport.currentUser().id().equals(2002L) ? 3002L : 3003L;
-        return catalogService.shopDetail(shopId);
+        return catalogService.shopDetail(currentMerchantShopId());
     }
 
     @GetMapping("/products")
     public Object products() {
-        Long shopId = securitySupport.currentUser().id().equals(2001L) ? 3001L : securitySupport.currentUser().id().equals(2002L) ? 3002L : 3003L;
-        return catalogService.shopDetail(shopId).get("products");
+        return catalogService.shopDetail(currentMerchantShopId()).get("products");
     }
 
     @GetMapping("/orders")
@@ -66,12 +68,17 @@ public class MerchantController {
 
     @GetMapping("/coupons")
     public Object coupons() {
-        Long shopId = securitySupport.currentUser().id().equals(2001L) ? 3001L : securitySupport.currentUser().id().equals(2002L) ? 3002L : 3003L;
-        return marketingService.couponsForShop(shopId);
+        return marketingService.couponsForShop(currentMerchantShopId());
     }
 
     @GetMapping("/chat/conversations")
     public Object conversations() {
         return chatService.conversationsForUser(securitySupport.currentUser());
+    }
+
+    private Long currentMerchantShopId() {
+        return userRepository.findById(securitySupport.currentUser().id())
+                .map(user -> user.shopId())
+                .orElseThrow(() -> new IllegalArgumentException("Merchant not found"));
     }
 }

@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   mysql:
     image: mysql:8.4
@@ -58,6 +56,13 @@ services:
       - rocketmq-nameserver
       - rocketmq-broker
       - elasticsearch
+    environment:
+      MEITUAN_DB_URL: jdbc:mysql://mysql:3306/meituan_demo?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8
+      MEITUAN_DB_USERNAME: root
+      MEITUAN_DB_PASSWORD: root
+      MEITUAN_REDIS_HOST: redis
+      MEITUAN_REDIS_PORT: 6379
+      MEITUAN_ROCKETMQ_NAME_SERVER: rocketmq-nameserver:9876
     ports:
       - "8080:8080"
 

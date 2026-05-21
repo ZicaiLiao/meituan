@@ -27,6 +27,11 @@ type Order = {
   items: { productName: string; quantity: number }[];
 };
 
+type CartItem = {
+  productId: number;
+  quantity: number;
+};
+
 type TimelineItem = {
   orderId: number;
   status: string;
@@ -34,8 +39,8 @@ type TimelineItem = {
   createdAt: string;
 };
 
-const token = 'demo-customer-1001';
 const apiBase = 'http://localhost:8080';
+const accessToken = ref('');
 
 const shops = ref<Shop[]>([]);
 const recommendations = ref<{ guessYouLike: Shop[]; nearbyHot: Shop[]; similarShops: Shop[] } | null>(null);
@@ -55,7 +60,7 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
+      ...(accessToken.value ? { Authorization: `Bearer ${accessToken.value}` } : {}),
       ...(options.headers || {})
     }
   });
@@ -63,6 +68,18 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw new Error(await response.text());
   }
   return response.json();
+}
+
+async function login() {
+  const result = await fetch(`${apiBase}/api/auth/customer/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ username: 'customer1001' })
+  });
+  const payload = await result.json();
+  accessToken.value = payload.accessToken;
 }
 
 async function loadAll() {
@@ -100,18 +117,40 @@ async function addToCart(productId: number) {
   statusText.value = `商品 ${productId} 已加入购物车`;
 }
 
+function resolveDefaultProductId(): number | undefined {
+  return Object.values(featuredProductByShop.value)[0];
+}
+
+async function ensureCartReady() {
+  const cartItems = await api<CartItem[]>('/api/cart');
+  if (cartItems.length > 0) {
+    return;
+  }
+  // 一键下单要与真实后端规则保持一致，购物车为空时先补入一个热销商品。
+  const fallbackProductId = resolveDefaultProductId();
+  if (!fallbackProductId) {
+    throw new Error('当前没有可下单商品，请先刷新商家数据');
+  }
+  await addToCart(fallbackProductId);
+}
+
 async function createOrderAndPay() {
-  const created = await api<Order>('/api/orders', {
-    method: 'POST',
-    body: JSON.stringify({ couponId: 6101, addressId: 6001 })
-  });
-  const paid = await api<Order>(`/api/orders/${created.id}/pay`, {
-    method: 'POST',
-    body: JSON.stringify({ paymentChannel: 'MOCK_PAY' })
-  });
-  orders.value = [paid, ...orders.value];
-  latestTimeline.value = await api<TimelineItem[]>(`/api/orders/${paid.id}/timeline`);
-  statusText.value = `订单 #${paid.id} 已创建并支付，等待商家接单`;
+  try {
+    await ensureCartReady();
+    const created = await api<Order>('/api/orders', {
+      method: 'POST',
+      body: JSON.stringify({ couponId: 6101, addressId: 6001 })
+    });
+    const paid = await api<Order>(`/api/orders/${created.id}/pay`, {
+      method: 'POST',
+      body: JSON.stringify({ paymentChannel: 'MOCK_PAY' })
+    });
+    orders.value = [paid, ...orders.value.filter((order) => order.id !== paid.id)];
+    latestTimeline.value = await api<TimelineItem[]>(`/api/orders/${paid.id}/timeline`);
+    statusText.value = `订单 #${paid.id} 已创建并支付，等待商家接单`;
+  } catch (error) {
+    statusText.value = error instanceof Error ? error.message : '下单失败，请稍后重试';
+  }
 }
 
 async function runSearch() {
@@ -138,8 +177,9 @@ async function sendMessage() {
 }
 
 onMounted(async () => {
+  await login();
   await loadAll();
-  const source = new EventSource(`${apiBase}/api/stream/events?token=${token}`);
+  const source = new EventSource(`${apiBase}/api/stream/events?token=${accessToken.value}`);
   ['connected', 'payment.succeeded', 'merchant.accepted', 'merchant.rejected', 'rider.accepted', 'delivery.completed', 'chat.message']
     .forEach((eventName) => {
       source.addEventListener(eventName, (event: MessageEvent) => {
